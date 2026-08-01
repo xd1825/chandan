@@ -41,6 +41,15 @@ EXCLUDE_KEYWORDS = [
     "breakout", "support resistance", "portfolio review",
 ]
 
+# Trusted business-news channels — if a video comes from one of these AND doesn't
+# hit an exclude keyword, treat it as genuine even if the title doesn't literally
+# say "interview" (real-world titles usually just say "CMD reveals..." etc.)
+TRUSTED_CHANNELS = [
+    "cnbc-tv18", "cnbc tv18", "et now", "ndtv profit", "moneycontrol",
+    "zee business", "business today", "btvi", "bloomberg", "cnbc awaaz",
+    "et now swadesh", "ndtv business", "wion business",
+]
+
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 
@@ -61,11 +70,22 @@ def save_seen(seen_ids):
         json.dump(sorted(seen_ids), f, indent=2)
 
 
-def is_genuine_interview(title, description):
+def is_genuine_interview(title, description, channel):
     text = f"{title} {description}".lower()
+    channel_lower = channel.lower()
+
     if any(bad in text for bad in EXCLUDE_KEYWORDS):
         return False
-    return any(good in text for good in INCLUDE_KEYWORDS)
+
+    if any(good in text for good in INCLUDE_KEYWORDS):
+        return True
+
+    # Fallback: trusted business-news channel content, not caught by keywords above,
+    # is still very likely genuine (these channels rarely post stock-tip content)
+    if any(trusted in channel_lower for trusted in TRUSTED_CHANNELS):
+        return True
+
+    return False
 
 
 def search_youtube(api_key, query, published_after):
@@ -132,7 +152,7 @@ def main():
 
             seen_ids.add(video_id)  # mark seen regardless, so we never re-check it
 
-            if is_genuine_interview(title, description):
+            if is_genuine_interview(title, description, channel):
                 new_hits.append(
                     {
                         "company": company,
